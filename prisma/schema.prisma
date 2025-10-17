@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Oyuncuları (Telegram Kullanıcılarını) temsil eder
+model Player {
+  id           String   @id @default(uuid()) // Veritabanı için benzersiz ID
+  telegramId   String   @unique // Telegram'dan gelen kullanıcı ID'si (Ana Anahtar)
+  username     String?
+  currentScore Int      @default(0)
+  moves        Move[]
+  rooms        Room[]   @relation(name: "RoomPlayers")
+}
+
+// Oyun Odalarını temsil eder
+model Room {
+  id           String   @id @default(uuid())
+  status       String   @default("WAITING") // WAITING, IN_PROGRESS, FINISHED
+  player1Id    String
+  player2Id    String?
+  moves        Move[]
+  winnerId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  // İlişkiler (Prisma, bu alanları sizin için otomatik yönetir)
+  players      Player[] @relation(name: "RoomPlayers")
+}
+
+// Oyun hareketlerini (Taş, Kağıt, Makas) temsil eder
+model Move {
+  id           String   @id @default(uuid())
+  roomId       String
+  playerId     String
+  round        Int
+  move         String // ROCK, PAPER, SCISSORS
+  isRevealed   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  // İlişkiler
+  room         Room     @relation(fields: [roomId], references: [id])
+  player       Player   @relation(fields: [playerId], references: [telegramId]) // Telegram ID'sine bağlama
+}

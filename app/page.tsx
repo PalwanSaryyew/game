@@ -1,103 +1,366 @@
+"use client";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { useEffect, useState, useCallback } from "react";
+import { GiPerspectiveDiceSixFacesRandom } from "react-icons/gi";
+import { PiHand, PiHandFistLight, PiHandPeaceLight } from "react-icons/pi";
+
+// Type'ları tanımlıyoruz
+type HandChoice = "rock" | "paper" | "scissors";
+type PlayerChoice = HandChoice | "random";
+// Yeni "startScreen" durumunu ekledik
+type GameState = "startScreen" | "choosing" | "revealing" | "result" | "roundEnd" | "gameOver";
+
+// Oyuncuların el resimlerini yönetmek için bir yardımcı fonksiyon
+const getHandImage = (choice: HandChoice | null, /* isOpponent: boolean */) => {
+    if (choice === null) return "/assets/male_idle.svg";
+    switch (choice) {
+        case "rock":
+            return "/assets/male_rock.svg";
+        case "paper":
+            return "/assets/male_paper.svg";
+        case "scissors":
+            return "/assets/male_scissors.svg";
+        default:
+            return "/assets/male_idle.svg";
+    }
+};
+
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    // === STATE MANAGEMENT ===
+    // Oyunu "startScreen" durumuyla başlat
+    const [gameState, setGameState] = useState<GameState>("startScreen");
+    const [roundMessage, setRoundMessage] = useState("");
+    const [totalRound, /* setTotalRound */] = useState(3);
+    // const [round, setRound] = useState(1); // Bu state'i kullanmadığınız için yorumda bıraktım
+    const [player1Score, setPlayer1Score] = useState(0);
+    const [player2Score, setPlayer2Score] = useState(0);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    const [player1Choice, setPlayer1Choice] = useState<HandChoice | null>(null);
+    const [player2Choice, setPlayer2Choice] = useState<HandChoice | null>(null);
+
+    const [timer, setTimer] = useState(5);
+    const INITIAL_TIMER_VALUE = 5;
+
+    // === HELPER FUNCTIONS ===
+    // Rastgele bir el seçimi döndüren fonksiyon
+    const randomChoice = (): HandChoice => {
+        const choices: HandChoice[] = ["rock", "paper", "scissors"];
+        const randomNumber = Math.floor(Math.random() * 3);
+        return choices[randomNumber];
+    };
+
+    // === CORE GAME LOGIC ===
+    // Oyuncunun seçimini işleyen fonksiyon
+    const handleHandChoice = (choice: PlayerChoice) => {
+        // Sadece seçim aşamasındayken seçim yapılmasına izin ver
+        if (gameState !== "choosing") return;
+        setPlayer1Choice(choice === "random" ? randomChoice() : choice);
+    };
+
+    // Kazananı belirleyen fonksiyon
+    const determineWinner = useCallback((p1: HandChoice, p2: HandChoice) => {
+        if (p1 === p2) {
+            setRoundMessage("Deňme-deň!"); // Berabere!
+            return;
+        }
+
+        const player1Wins =
+            (p1 === "rock" && p2 === "scissors") ||
+            (p1 === "paper" && p2 === "rock") ||
+            (p1 === "scissors" && p2 === "paper");
+
+        if (player1Wins) {
+            setRoundMessage("Siz ýeňdiňiz!"); // Siz yendiniz!
+            setPlayer1Score((prev) => prev + 1);
+        } else {
+            setRoundMessage("Garşydaş ýeňdi!"); // Karşı taraf yendi!
+            setPlayer2Score((prev) => prev + 1);
+        }
+        // setRound((prev) => prev + 1); // Tur sayısını artır
+    }, []);
+
+    // Sıradaki tura geçişi yöneten fonksiyon
+    const handleNextRound = () => {
+        setGameState("choosing");
+        setPlayer1Choice(null);
+        setPlayer2Choice(null);
+        setRoundMessage("");
+        setTimer(INITIAL_TIMER_VALUE);
+    };
+
+    // Oyunu başlatan fonksiyon
+    const handleStartGame = () => {
+        setGameState("choosing");
+        setTimer(INITIAL_TIMER_VALUE);
+    };
+
+    // Oyunu yeniden başlatan fonksiyon
+    const handlePlayAgain = () => {
+        setGameState("startScreen"); // "choosing" yerine "startScreen" e dön
+        setPlayer1Score(0);
+        setPlayer2Score(0);
+        setPlayer1Choice(null);
+        setPlayer2Choice(null);
+        setRoundMessage("");
+        setTimer(INITIAL_TIMER_VALUE);
+    };
+
+
+    // === EFFECTS ===
+    // Zamanlayıcıyı yöneten useEffect
+    useEffect(() => {
+        // Sadece "choosing" durumundayken zamanlayıcıyı çalıştır
+        if (gameState !== "choosing") {
+            return;
+        }
+
+        if (timer === 0) {
+            // Zaman dolduğunda seçimleri belirle ve açıklama aşamasına geç
+            const finalP1Choice = player1Choice ?? randomChoice();
+            const finalP2Choice = randomChoice(); // Botun seçimi burada rastgele yapılıyor
+
+            setPlayer1Choice(finalP1Choice);
+            setPlayer2Choice(finalP2Choice);
+            determineWinner(finalP1Choice, finalP2Choice);
+            setGameState("revealing");
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setTimer((prev) => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [timer, gameState, player1Choice, determineWinner]); // player1Choice'ı bağımlılıklardan çıkardım, gereksiz tetiklemeyi önler
+
+    // Oyun durumları arasındaki geçişi yöneten useEffect
+    useEffect(() => {
+        if (gameState === "revealing") {
+            // 1 saniye sonra sonuçları göster
+            const timeout = setTimeout(() => {
+                setGameState("result");
+            }, 1000); // El resimleri 1 saniye gösterilir
+            return () => clearTimeout(timeout);
+        }
+
+        if (gameState === "result") {
+            // Oyunun bitip bitmediğini kontrol et
+            if (player1Score >= totalRound || player2Score >= totalRound) {
+                setRoundMessage(player1Score > player2Score ? "Oýuny Siz Ýeňdiňiz!" : "Oýuny Garşydaş Ýeňdi!");
+                setGameState("gameOver");
+                return;
+            }
+
+            // 2 saniye sonra "Sıradaki Tur" aşamasına geç
+            const timeout = setTimeout(() => {
+                setGameState("roundEnd");
+            }, 2000); // Sonuç mesajı 2 saniye gösterilir
+            return () => clearTimeout(timeout);
+        }
+    }, [gameState, player1Score, player2Score, totalRound]);
+
+
+    return (
+        <div className="bg-gradient-to-b from-blue-800 to-red-800 min-h-screen flex flex-col relative">
+
+            {/* Overlay for Messages and Buttons */}
+            <div
+                className={cn(
+                    "fixed top-0 bottom-0 right-0 left-0 bg-accent/50 z-10 backdrop-blur-sm items-center justify-center",
+                    // "startScreen" durumunu da görünür yap
+                    gameState === "startScreen" || gameState === "result" || gameState === "roundEnd" || gameState === "gameOver"
+                        ? "flex flex-col space-y-4"
+                        : "hidden"
+                )}
+            >
+                {/* Başlatma Düğmesi */}
+                {gameState === "startScreen" && (
+                    <Button
+                        onClick={handleStartGame}
+                        className="text-5xl p-10 border-primary-foreground border-2 shadow-2xl shadow-accent active:scale-95 active:border-3 select-none"
+                    >
+                        Oýuna Başla
+                    </Button>
+                )}
+
+                {/* Sonuç Mesajı */}
+                {(gameState === "result" || gameState === "gameOver") && (
+                    <p className="text-5xl font-bold text-white text-center p-4">
+                        {roundMessage}
+                    </p>
+                )}
+
+                {/* Sıradaki Tur Düğmesi */}
+                {gameState === "roundEnd" && (
+                    <Button
+                        onClick={handleNextRound}
+                        className="text-5xl p-10 border-primary-foreground border-2 shadow-2xl shadow-accent active:scale-95 active:border-3 select-none"
+                    >
+                        Indiki Tur
+                    </Button>
+                )}
+
+                {/* Oyun Bittiğinde Yeniden Oyna Düğmesi */}
+                {gameState === "gameOver" && (
+                    <Button
+                        onClick={handlePlayAgain}
+                        className="text-3xl p-8 border-primary-foreground border-2 shadow-2xl shadow-accent active:scale-95 active:border-3 select-none"
+                    >
+                        Täzeden Oýna
+                    </Button>
+                )}
+            </div>
+
+            {/* player 2 area (Opponent) */}
+            <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+                <Image
+                    src={getHandImage(player2Choice, /* true */)}
+                    alt="Player 2 Hand"
+                    layout="fill"
+                    objectFit="contain"
+                    className="p-4 transform rotate-180 -translate-y-26"
+                />
+            </div>
+
+            {/* player 1 area (You) */}
+            <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+                <Image
+                    src={getHandImage(player1Choice, /* false */)}
+                    alt="Player 1 Hand"
+                    layout="fill"
+                    objectFit="contain"
+                    className="p-4 transform translate-y-26"
+                />
+            </div>
+
+            {/* buttons */}
+            <div className={cn(
+                "absolute bottom-0 flex items-center justify-center w-full pb-4 transition-opacity duration-300",
+                // Başlangıç ekranındaysa gizle
+                gameState === "startScreen" && "hidden",
+                // Seçim aşamasında değilse pasif yap
+                gameState !== "choosing" && "opacity-50 pointer-events-none"
+            )}>
+                {/* left box */}
+                <div>
+                    {/* scissors */}
+                    <div
+                        onClick={() => handleHandChoice("scissors")}
+                        className="bg-secondary/50 rounded-full p-3 border border-white backdrop-blur-sm hover:shadow-lg hover:ring-2 active:scale-95 active:bg-blue-500/20 transition-all duration-150"
+                    >
+                        <PiHandPeaceLight size={60} />
+                    </div>
+                </div>
+                {/* middle box */}
+                <div>
+                    {/* rock */}
+                    <div
+                        onClick={() => handleHandChoice("rock")}
+                        className="bg-secondary/50 rounded-full p-3 border border-white backdrop-blur-sm mb-10 hover:shadow-lg hover:ring-2 active:scale-95 active:bg-blue-500/20 transition-all duration-150"
+                    >
+                        <PiHandFistLight size={60} />
+                    </div>
+                    {/* Random */}
+                    <div
+                        onClick={() => handleHandChoice("random")}
+                        className="bg-secondary/50 rounded-full p-3 border border-white backdrop-blur-sm hover:shadow-lg hover:ring-2 active:scale-95 active:bg-blue-500/20 transition-all duration-150"
+                    >
+                        <GiPerspectiveDiceSixFacesRandom size={60} />
+                    </div>
+                </div>
+                {/* right box */}
+                <div>
+                    {/* paper */}
+                    <div
+                        onClick={() => handleHandChoice("paper")}
+                        className="bg-secondary/50 rounded-full p-3 border border-white backdrop-blur-sm hover:shadow-lg hover:ring-2 active:scale-95 active:bg-blue-500/20 transition-all duration-150"
+                    >
+                        <PiHand size={60} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Timer */}
+            <div className={cn(
+                "fixed left-0 pl-8 flex items-center h-screen",
+                // Başlangıç ekranındaysa gizle
+                gameState === "startScreen" && "hidden"
+            )}>
+                {/* sticks */}
+                <div className="w-3 h-100 bg-primary/20 flex flex-col justify-end rounded-full items-center relative">
+                    {/* progress */}
+                    <div
+                        className="w-full bg-destructive rounded-full transition-all duration-1000 linear"
+                        style={{
+                            height: `${(100 / INITIAL_TIMER_VALUE) * timer}%`,
+                        }}
+                    ></div>
+                    {/* left time */}
+                    <div className="absolute bottom-0 translate-y-full pt-1">
+                        {timer}
+                    </div>
+                </div>
+            </div>
+
+            {/* score */}
+            <div className={cn(
+                "fixed right-0 pr-8 flex items-center h-screen",
+                // Başlangıç ekranındaysa gizle
+                gameState === "startScreen" && "hidden"
+            )}>
+                {/* stick */}
+                <div className="w-3 h-100 bg-primary/20 flex flex-col items-center">
+                    {/* player 2 progress bar*/}
+                    <div className="w-full h-1/2 items-center flex flex-col">
+                        {/* player 2 avatar */}
+                        <div className="w-10 h-10 bg-chart-2 scale-110 rounded-full ">
+                            <Image
+                                src="/assets/cpu_hp_avatar.svg"
+                                alt="Player 2 avatar"
+                                layout="fill"
+                                objectFit="contain"
+                                className="p-1"
+                            />
+                        </div>
+                        {/* progress */}
+                        <div
+                            className={`bg-chart-2 w-full rounded-b-full transition-all duration-500`}
+                            style={{
+                                height: `${Math.round(
+                                    (100 / totalRound) * player2Score
+                                )}%`,
+                            }}
+                        ></div>
+                    </div>
+                    {/* border */}
+                    <div className="absolute top-1/2 -translate-y-1/2 rounded-full bg-muted-foreground h-1 w-[50%]" />
+                    {/* player 1 progress bar*/}
+                    <div className="w-full h-1/2 flex flex-col justify-end items-center">
+                        {/* progress */}
+                        <div
+                            className="bg-primary w-full rounded-t-full transition-all duration-500"
+                            style={{
+                                height: `${Math.round(
+                                    (100 / totalRound) * player1Score
+                                )}%`,
+                            }}
+                        ></div>
+                        {/* player 2 avatar */}
+                        <div className="w-10 h-10 bg-primary scale-110 rounded-full">
+                            <Image
+                                src="/assets/user_hp_avatar.svg"
+                                alt="Player 1 avatar"
+                                layout="fill"
+                                objectFit="contain"
+                                className="p-1"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+    );
 }
